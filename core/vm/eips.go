@@ -18,6 +18,7 @@ package vm
 
 import (
 	"fmt"
+	"github.com/ethereum/go-ethereum/common"
 	"sort"
 
 	"github.com/ethereum/go-ethereum/params"
@@ -199,5 +200,46 @@ func opAuth(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byt
 }
 
 func opAuthCall(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
-	return nil, nil
+	if scope.Authorized == nil {
+		return nil, ErrAuthorizedUnset
+	}
+
+	stack := scope.Stack
+	// Pop gas. The actual gas in interpreter.evm.callGasTemp.
+	// We can use this as a temporary value
+	temp := stack.pop()
+	gas := interpreter.evm.callGasTemp
+	// Pop other call parameters.
+	addr, value, extValue, inOffset, inSize, retOffset, retSize := stack.pop(), stack.pop(), stack.pop(), stack.pop(), stack.pop(), stack.pop(), stack.pop()
+	toAddr := common.Address(addr.Bytes20())
+	// Get the arguments from the memory.
+	args := scope.Memory.GetPtr(int64(inOffset.Uint64()), int64(inSize.Uint64()))
+
+	var (
+		bigVal    = big0
+		bigExtVal = big0
+	)
+	if !value.IsZero() {
+		bigVal = value.ToBig()
+	}
+	if !extValue.IsZero() {
+		bigExtVal = extValue.ToBig()
+	}
+
+	ret, returnGas, err := interpreter.evm.AuthCall(scope.Contract, *scope.Authorized, toAddr, args, gas, bigVal, bigExtVal)
+
+	if err == ErrInsufficientBalance {
+		return nil, ErrInsufficientBalance
+	} else if err != nil {
+		temp.Clear()
+	} else {
+		temp.SetOne()
+	}
+	stack.push(&temp)
+	if err == nil || err == ErrExecutionReverted {
+		scope.Memory.Set(retOffset.Uint64(), retSize.Uint64(), ret)
+	}
+	scope.Contract.Gas += returnGas
+
+	return ret, nil
 }
