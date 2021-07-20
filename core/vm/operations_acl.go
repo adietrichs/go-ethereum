@@ -196,6 +196,7 @@ var (
 	gasDelegateCallEIP2929 = makeCallVariantGasCallEIP2929(gasDelegateCall)
 	gasStaticCallEIP2929   = makeCallVariantGasCallEIP2929(gasStaticCall)
 	gasCallCodeEIP2929     = makeCallVariantGasCallEIP2929(gasCallCode)
+	gasAuthCallEIP2929     = makeCallVariantGasCallEIP2929(gasAuthCall)
 	gasSelfdestructEIP2929 = makeSelfdestructGasFn(true)
 	// gasSelfdestructEIP3529 implements the changes in EIP-2539 (no refunds)
 	gasSelfdestructEIP3529 = makeSelfdestructGasFn(false)

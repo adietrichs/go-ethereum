@@ -174,3 +174,30 @@ func opBaseFee(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]
 	scope.Stack.push(baseFee)
 	return nil, nil
 }
+
+func enable3074(jt *JumpTable) {
+	jt[AUTH] = &operation{
+		execute:     opAuth,
+		constantGas: params.AuthGasEIP3074,
+		minStack:    minStack(4, 1),
+		maxStack:    maxStack(4, 1),
+	}
+
+	jt[AUTHCALL] = &operation{
+		execute:     opAuthCall,
+		constantGas: params.WarmStorageReadCostEIP2929,
+		dynamicGas:  gasAuthCallEIP2929,
+		minStack:    minStack(8, 1),
+		maxStack:    maxStack(8, 1),
+		memorySize:  memoryAuthCall,
+		returns:     true,
+	}
+}
+
+func opAuth(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
+	return nil, nil
+}
+
+func opAuthCall(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
+	return nil, nil
+}
