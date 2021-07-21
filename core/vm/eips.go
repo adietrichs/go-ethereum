@@ -18,6 +18,8 @@ package vm
 
 import (
 	"fmt"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"sort"
 
 	"github.com/ethereum/go-ethereum/params"
@@ -27,6 +29,7 @@ import (
 var activators = map[int]func(*JumpTable){
 	3529: enable3529,
 	3198: enable3198,
+	3074: enable3074,
 	2929: enable2929,
 	2200: enable2200,
 	1884: enable1884,
@@ -173,4 +176,106 @@ func opBaseFee(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]
 	baseFee, _ := uint256.FromBig(interpreter.evm.Context.BaseFee)
 	scope.Stack.push(baseFee)
 	return nil, nil
+}
+
+func enable3074(jt *JumpTable) {
+	jt[AUTH] = &operation{
+		execute:     opAuth,
+		constantGas: params.AuthGasEIP3074,
+		minStack:    minStack(4, 1),
+		maxStack:    maxStack(4, 1),
+	}
+
+	jt[AUTHCALL] = &operation{
+		execute:     opAuthCall,
+		constantGas: params.WarmStorageReadCostEIP2929,
+		dynamicGas:  gasAuthCallEIP2929,
+		minStack:    minStack(8, 1),
+		maxStack:    maxStack(8, 1),
+		memorySize:  memoryAuthCall,
+		returns:     true,
+	}
+}
+
+func opAuth(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
+	commit, v, r, s := scope.Stack.pop(), scope.Stack.pop(), scope.Stack.pop(), scope.Stack.pop()
+
+	scope.Authorized = nil
+
+	if v.BitLen() < 8 && crypto.ValidateSignatureValues(byte(v.Uint64()), r.ToBig(), s.ToBig(), true) {
+		msg := make([]byte, 65)
+		msg[0] = 0x03
+		copy(msg[13:33], scope.Contract.Address().Bytes())
+		commit.WriteToSlice(msg[33:65])
+		hash := crypto.Keccak256(msg)
+
+		sig := make([]byte, 65)
+		r.WriteToSlice(sig[0:32])
+		s.WriteToSlice(sig[32:64])
+		sig[64] = byte(v.Uint64())
+
+		pubKey, err := crypto.Ecrecover(hash[:], sig)
+
+		if err == nil {
+			var addr common.Address
+			copy(addr[:], crypto.Keccak256(pubKey[1:])[12:])
+			scope.Authorized = &addr
+		}
+	}
+
+	temp := commit
+
+	if scope.Authorized == nil {
+		temp.Clear()
+	} else {
+		temp.SetBytes20(scope.Authorized.Bytes())
+	}
+	scope.Stack.push(&temp)
+
+	return nil, nil
+}
+
+func opAuthCall(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
+	if scope.Authorized == nil {
+		return nil, ErrAuthorizedUnset
+	}
+
+	stack := scope.Stack
+	// Pop gas. The actual gas in interpreter.evm.callGasTemp.
+	// We can use this as a temporary value
+	temp := stack.pop()
+	gas := interpreter.evm.callGasTemp
+	// Pop other call parameters.
+	addr, value, valueExt, inOffset, inSize, retOffset, retSize := stack.pop(), stack.pop(), stack.pop(), stack.pop(), stack.pop(), stack.pop(), stack.pop()
+	toAddr := common.Address(addr.Bytes20())
+	// Get the arguments from the memory.
+	args := scope.Memory.GetPtr(int64(inOffset.Uint64()), int64(inSize.Uint64()))
+
+	var (
+		bigVal    = big0
+		bigValExt = big0
+	)
+	if !value.IsZero() {
+		bigVal = value.ToBig()
+	}
+	if !valueExt.IsZero() {
+		bigValExt = valueExt.ToBig()
+	}
+
+	ret, returnGas, err := interpreter.evm.AuthCall(scope.Contract, *scope.Authorized, toAddr, args, gas, bigVal, bigValExt)
+
+	if err == ErrInsufficientBalance {
+		return nil, ErrInsufficientBalance
+	} else if err != nil {
+		temp.Clear()
+	} else {
+		temp.SetOne()
+	}
+	stack.push(&temp)
+	if err == nil || err == ErrExecutionReverted {
+		scope.Memory.Set(retOffset.Uint64(), retSize.Uint64(), ret)
+	}
+	scope.Contract.Gas += returnGas
+
+	return ret, nil
 }
