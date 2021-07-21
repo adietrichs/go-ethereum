@@ -189,7 +189,7 @@ func enable3074(jt *JumpTable) {
 	jt[AUTHCALL] = &operation{
 		execute:     opAuthCall,
 		constantGas: params.WarmStorageReadCostEIP2929,
-		dynamicGas:  gasAuthCall, // todo: adjust
+		dynamicGas:  gasAuthCall,
 		minStack:    minStack(8, 1),
 		maxStack:    maxStack(8, 1),
 		memorySize:  memoryAuthCall,
