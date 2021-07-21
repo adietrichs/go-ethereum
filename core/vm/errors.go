@@ -37,6 +37,7 @@ var (
 	ErrInvalidCode              = errors.New("invalid code: must not begin with 0xef")
 	ErrAuthorizedUnset          = errors.New("authcall: authorized unset")
 	ErrNonZeroValueExt          = errors.New("authcall: non-zero valueExt")
+	ErrInsufficientAuthCallGas  = errors.New("authcall: insufficient gas")
 )
 
 // ErrStackUnderflow wraps an evm error when the items on the stack less
