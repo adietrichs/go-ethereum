@@ -58,10 +58,17 @@ var (
 	istanbulInstructionSet         = newIstanbulInstructionSet()
 	berlinInstructionSet           = newBerlinInstructionSet()
 	londonInstructionSet           = newLondonInstructionSet()
+	parisInstructionSet            = newParisInstructionSet()
 )
 
 // JumpTable contains the EVM opcodes supported at a given fork.
 type JumpTable [256]*operation
+
+func newParisInstructionSet() JumpTable {
+	instructionSet := newBerlinInstructionSet()
+	enable3074(&instructionSet)
+	return instructionSet
+}
 
 // newLondonInstructionSet returns the frontier, homestead, byzantium,
 // contantinople, istanbul, petersburg, berlin and london instructions.
