@@ -18,6 +18,8 @@ package vm
 
 import (
 	"fmt"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"sort"
 
 	"github.com/ethereum/go-ethereum/params"
@@ -196,6 +198,40 @@ func enable3074(jt *JumpTable) {
 }
 
 func opAuth(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
+	commit, v, r, s := scope.Stack.pop(), scope.Stack.pop(), scope.Stack.pop(), scope.Stack.pop()
+
+	scope.Authorized = nil
+
+	if v.BitLen() < 8 && crypto.ValidateSignatureValues(byte(v.Uint64()), r.ToBig(), s.ToBig(), true) {
+		msg := make([]byte, 65)
+		msg[0] = 0x03
+		copy(msg[13:33], scope.Contract.Address().Bytes())
+		commit.WriteToSlice(msg[33:65])
+		hash := crypto.Keccak256(msg)
+
+		sig := make([]byte, 65)
+		r.WriteToSlice(sig[0:32])
+		s.WriteToSlice(sig[32:64])
+		sig[64] = byte(v.Uint64())
+
+		pubKey, err := crypto.Ecrecover(hash[:], sig)
+
+		if err == nil {
+			var addr common.Address
+			copy(addr[:], crypto.Keccak256(pubKey[1:])[12:])
+			scope.Authorized = &addr
+		}
+	}
+
+	temp := commit
+
+	if scope.Authorized == nil {
+		temp.Clear()
+	} else {
+		temp.SetBytes20(scope.Authorized.Bytes())
+	}
+	scope.Stack.push(&temp)
+
 	return nil, nil
 }
 
