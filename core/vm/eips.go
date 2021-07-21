@@ -27,6 +27,7 @@ import (
 var activators = map[int]func(*JumpTable){
 	3529: enable3529,
 	3198: enable3198,
+	3074: enable3074,
 	2929: enable2929,
 	2200: enable2200,
 	1884: enable1884,
@@ -172,5 +173,32 @@ func enable3198(jt *JumpTable) {
 func opBaseFee(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
 	baseFee, _ := uint256.FromBig(interpreter.evm.Context.BaseFee)
 	scope.Stack.push(baseFee)
+	return nil, nil
+}
+
+func enable3074(jt *JumpTable) {
+	jt[AUTH] = &operation{
+		execute:     opAuth,
+		constantGas: params.AuthGasEIP3074,
+		minStack:    minStack(4, 1),
+		maxStack:    maxStack(4, 1),
+	}
+
+	jt[AUTHCALL] = &operation{
+		execute:     opAuthCall,
+		constantGas: params.WarmStorageReadCostEIP2929,
+		dynamicGas:  gasAuthCall, // todo: adjust
+		minStack:    minStack(8, 1),
+		maxStack:    maxStack(8, 1),
+		memorySize:  memoryAuthCall,
+		returns:     true,
+	}
+}
+
+func opAuth(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
+	return nil, nil
+}
+
+func opAuthCall(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
 	return nil, nil
 }
