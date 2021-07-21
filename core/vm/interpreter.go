@@ -41,9 +41,10 @@ type Config struct {
 // ScopeContext contains the things that are per-call, such as stack and memory,
 // but not transients like pc and gas
 type ScopeContext struct {
-	Memory   *Memory
-	Stack    *Stack
-	Contract *Contract
+	Memory     *Memory
+	Stack      *Stack
+	Contract   *Contract
+	Authorized *common.Address
 }
 
 // keccakState wraps sha3.state. In addition to the usual hash methods, it also supports
